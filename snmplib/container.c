@@ -368,13 +368,13 @@ int CONTAINER_INSERT_BEFORE(netsnmp_container *x, size_t pos, void *k)
 
     if (NULL == x || NULL == x->insert_before) {
         snmp_log(LOG_ERR, "container '%s' does not support insert_before\n",
-                 x && x->container_name ? x->container_name : "");
+                 x->container_name ? x->container_name : "");
         return -1;
     }
 
     rc = x->insert_before(x, pos, k);
     if (rc < 0)
-        snmp_log(LOG_ERR, "error on container '%s' insert_before %" NETSNMP_PRIz "d (%d)\n",
+        snmp_log(LOG_ERR,"error on container '%s' insert_before %ld (%d)\n",
                  x->container_name ? x->container_name : "", pos, rc);
 
     return rc;
@@ -416,14 +416,14 @@ int CONTAINER_REMOVE_AT(netsnmp_container *x, size_t pos, void **k)
 
     if (NULL == x || NULL == x->remove_at) {
         snmp_log(LOG_ERR, "container '%s' does not support REMOVE_AT\n",
-                 x && x->container_name ? x->container_name : "");
+                 x->container_name ? x->container_name : "");
         return -1;
     }
 
     /** start at given container */
     rc = x->remove_at(x, pos, k);
     if (rc < 0) {
-        snmp_log(LOG_ERR, "error on container '%s' remove_at %" NETSNMP_PRIz "d (%d)\n",
+        snmp_log(LOG_ERR,"error on container '%s' remove_at %ld (%d)\n",
                  x->container_name ? x->container_name : "", pos, rc);
         return rc;
     } else if (NULL == k || NULL == *k)
@@ -450,14 +450,14 @@ int CONTAINER_GET_AT(netsnmp_container *x, size_t pos, void **k)
 
     if (NULL == x || NULL == x->get_at) {
         snmp_log(LOG_ERR, "container '%s' does not support GET_AT\n",
-                 x && x->container_name ? x->container_name : "");
+                 x->container_name ? x->container_name : "");
         return -1;
     }
 
     /** start at given container */
     rc = x->get_at(x, pos, k);
     if (rc < 0)
-        snmp_log(LOG_ERR, "error on container '%s' get_at %" NETSNMP_PRIz "d (%d)\n",
+        snmp_log(LOG_ERR,"error on container '%s' get_at %ld (%d)\n",
                  x->container_name ? x->container_name : "", pos, rc);
 
     return rc;
