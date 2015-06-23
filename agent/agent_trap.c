@@ -1160,21 +1160,11 @@ handle_inform_response(int op, netsnmp_session * session,
         DEBUGMSGTL(("trap",
                     "received a timeout sending an inform for reqid=%d\n",
                     reqid));
-#ifndef NETSNMP_NO_TRAP_STATS
-        if (session->trap_stats) {
-            ++session->trap_stats->timeouts;
-            session->trap_stats->sent_last_timeout =
-                netsnmp_get_agent_uptime();
         }
-#endif /* NETSNMP_NO_TRAP_STATS */
         break;
 
     case NETSNMP_CALLBACK_OP_RESEND:
         DEBUGMSGTL(("trap", "resending an inform for reqid=%d\n", reqid));
-#ifndef NETSNMP_NO_TRAP_STATS
-        if (session->trap_stats)
-            session->trap_stats->sent_last_sent = netsnmp_get_agent_uptime();
-#endif /* NETSNMP_NO_TRAP_STATS */
         break;
 
     case NETSNMP_CALLBACK_OP_SEND_FAILED:
