@@ -1273,6 +1273,9 @@ vacm_check_view_contents(netsnmp_pdu *pdu, oid * name, size_t namelen,
 #endif
     const char     *sn = NULL;
     char           *vn;
+#if !defined(NETSNMP_DISABLE_SNMPV1) || !defined(NETSNMP_DISABLE_SNMPV2C)
+    const char     *pdu_community;
+#endif
 
     /*
      * len defined by the vacmContextName object 
