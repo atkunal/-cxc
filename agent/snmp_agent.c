@@ -3407,9 +3407,6 @@ handle_getnext_loop(netsnmp_agent_session *asp)
     int             status, rough_size, count = 0, total, val_len;
     netsnmp_variable_list *var_ptr, *last_var = NULL;
 
-    if (NULL == asp || NULL == asp->pdu)
-        return SNMP_ERR_GENERR;
-
     total = count_varbinds(asp->pdu->variables);
 
     /*
