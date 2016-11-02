@@ -5052,7 +5052,17 @@ usm_create_usmUser(const char *userName, const char *engineID, u_int flags,
     if (0 == privType)
         goto create;
 
-    str = usm_lookup_priv_str(privType);
+    str = NULL;
+#ifndef NETSNMP_DISABLE_DES
+    if (USM_CREATE_USER_PRIV_DES == privType)
+        str = "DES";
+#endif
+#ifdef HAVE_AES
+    if (USM_CREATE_USER_PRIV_AES == privType)
+        str = "AES";
+#endif
+    if (USM_CREATE_USER_PRIV_DFLT == privType)
+        str = "default";
     if (NULL == str) {
         *errorMsg = "Unknown privacy protocol";
         return NULL;
