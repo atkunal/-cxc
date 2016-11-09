@@ -109,7 +109,10 @@ _netsnmp_udp_sockopt_set(int fd, int local)
     netsnmp_sock_buffer_set(fd, SO_RCVBUF, local, 0);
 }
 
-#if defined(HAVE_IP_PKTINFO) || (defined(HAVE_IP_RECVDSTADDR) && defined(HAVE_IP_SENDSRCADDR))
+#if defined(HAVE_IP_PKTINFO) || defined(HAVE_IP_RECVDSTADDR)
+# if defined(HAVE_IP_RECVDSTADDR) && !defined(HAVE_IP_SENDSRCADDR)
+#  define HAVE_IP_SENDSRCADDR HAVE_IP_RECVDSTADDR /* DragonFly BSD */
+# endif
 
 #define netsnmp_udpbase_recvfrom_sendto_defined
 
