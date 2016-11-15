@@ -431,7 +431,7 @@ netsnmp_create_v1v2_notification_session(const char *sink, const char* sinkport,
         /** diagnose snmp_open errors with the input netsnmp_session pointer */
         snmp_sess_perror("snmpd: netsnmp_create_notification_session",
                          &session);
-        netsnmp_transport_free(t);
+        /* transport freed by snmp_add */
         return NULL;
     }
 
