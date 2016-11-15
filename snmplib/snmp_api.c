@@ -375,6 +375,24 @@ netsnmp_max_send_msg_size(void)
     return max;
 }
 
+/*
+ * return configured max message size for outgoing packets
+ */
+int
+netsnmp_max_send_msg_size(void)
+{
+    u_int max = netsnmp_ds_get_int(NETSNMP_DS_LIBRARY_ID,
+                                   NETSNMP_DS_LIB_MSG_SEND_MAX);
+    if (0 == max)
+        max = SNMP_MAX_PACKET_LEN;
+    else if (max < SNMP_MIN_MAX_LEN)
+        max = SNMP_MIN_MAX_LEN; /* minimum max size per SNMP specs */
+    else if (max > SNMP_MAX_PACKET_LEN)
+        max = SNMP_MAX_PACKET_LEN;
+
+    return max;
+}
+
 #ifndef HAVE_STRERROR
 const char     *
 strerror(int err)
