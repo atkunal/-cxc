@@ -28,7 +28,9 @@ addons:
 # Try the new docker infrastructure
 sudo: false
 #
-# Try with and without --enable-minimalist
+# Try with and without --enable-minimalist,
+# and --disable-set-support
 env:
    - EXTRACONFIG=
    - EXTRACONFIG=--enable-minimalist
+   - EXTRACONFIG=--disable-set-support
