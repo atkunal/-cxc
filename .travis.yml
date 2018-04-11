@@ -34,3 +34,4 @@ env:
    - EXTRACONFIG=--enable-minimalist
    - EXTRACONFIG=--disable-set-support
    - EXTRACONFIG=--enable-read-only
+   - EXTRACONFIG="--disable-set-support --enable-read-only"
