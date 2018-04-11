@@ -28,9 +28,9 @@ addons:
 # Try the new docker infrastructure
 sudo: false
 #
-# Try with and without --enable-minimalist,
-# and --disable-set-support
+# Try with and without a few configure args
 env:
    - EXTRACONFIG=
    - EXTRACONFIG=--enable-minimalist
    - EXTRACONFIG=--disable-set-support
+   - EXTRACONFIG=--enable-read-only
