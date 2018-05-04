@@ -1,0 +1,14 @@
+#!/usr/bin/perl
+#
+# Use the "connect" trick to find out my IP address.
+# Note that the destination address here does not
+# actually matter, we will never send any data to it.
+# We use Google's public DNS server, since, it doesn't
+# matter.
+use IO::Socket;
+my $sock = IO::Socket::INET->new( Proto => 'udp', PeerPort => 53, PeerAddr => '8.8.8.8' );
+exit 1 if !defined( $sock );
+my $myip = inet_ntoa( $sock->sockaddr() );
+exit 1 if $myip eq '0.0.0.0';
+print $myip, "\n";
+exit 0;
