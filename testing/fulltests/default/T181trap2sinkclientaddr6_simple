@@ -1,0 +1,21 @@
+#!/bin/sh
+
+. ../support/simple_eval_tools.sh
+
+HEADER Agent uses clientaddr for v6 trapsink source
+
+SKIPIF NETSNMP_DISABLE_SNMPV2C
+
+SKIP Code incorrectly uses port 161 for clientaddr - re-enable when this bug is fixed
+
+. ./S180trapaddrinfra
+
+INITV6
+
+#XXXX
+AGENT_FLAGS="$AGENT_FLAGS -DALL"
+
+CONFIGAGENT "[snmp] clientaddr ::1"
+CONFIGAGENT trap2sink ${SNMP_TRANSPORT_SPEC}:${SNMP_TEST_DEST}${SNMP_SNMPTRAPD_PORT} public
+
+RUNTEST
