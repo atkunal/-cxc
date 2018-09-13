@@ -24,7 +24,6 @@ addons:
          - python2.7-dev
          - libssl-dev
          - net-tools
-         - libio-socket-ip-perl
 #
 # Try the new docker infrastructure
 sudo: false
