@@ -5,22 +5,25 @@
 # actually matter, we will never send any data to it.
 # We use Google's public DNS server, since, it doesn't
 # matter.
-use IO::Socket::IP;
-use Socket qw(inet_ntop);
+use Socket qw(getaddrinfo getnameinfo SOCK_DGRAM NI_NUMERICHOST);
+use strict;
 my $v6 = $ARGV[0] eq "ipv6";
-my $af, $dest, $noaddr;
+my ( $dest, $noaddr );
 if ($v6) {
-    $af = AF_INET6;
     $dest = '2001:4860:4860::8888';
     $noaddr = '::';
  } else {
-    $af = AF_INET;
     $dest = '8.8.8.8';
     $noaddr = '0.0.0.0';
 }
-my $sock = IO::Socket::IP->new( Proto => 'udp', PeerPort => 53, PeerAddr => $dest );
-exit 1 if !defined( $sock );
-my $myip = inet_ntop( $af, $sock->sockaddr() );
+my ( $err, @result ) = getaddrinfo( $dest, "53", { socktype => SOCK_DGRAM } );
+exit 1 if $err;
+exit 1 if length( @result ) != 1;
+my $result = @result[ 0 ];
+socket( S, $result->{family}, $result->{socktype}, $result->{protocol} );
+connect( S, $result->{addr} );
+my ( $err, $myip, $servicename ) = getnameinfo( getsockname( S ), NI_NUMERICHOST );
+exit 1 if $err;
 exit 1 if $myip eq $noaddr;
 print $myip, "\n";
 exit 0;
