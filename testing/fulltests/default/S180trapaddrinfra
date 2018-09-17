@@ -18,7 +18,7 @@ INIT() {
         SKIP "can not determine my IP"
     fi
 
-    if [ "$1" == "ipv6" ]
+    if [ "$1" = "ipv6" ]
     then
         SNMP_TEST_DEST="[${MYIP}]":
     else
