@@ -199,6 +199,24 @@ extern          "C" {
                                                     u_int time_uint,
                                                     int *error);
 
+    int             usm_calc_offsets(size_t globalDataLen,
+                                     int secLevel,
+                                     size_t secEngineIDLen,
+                                     size_t secNameLen,
+                                     size_t scopedPduLen,
+                                     u_long engineboots,
+                                     long engine_time,
+                                     size_t * theTotalLength,
+                                     size_t * authParamsOffset,
+                                     size_t * privParamsOffset,
+                                     size_t * dataOffset,
+                                     size_t * datalen,
+                                     size_t * msgAuthParmLen,
+                                     size_t * msgPrivParmLen,
+                                     size_t * otstlen,
+                                     size_t * seq_len,
+                                     size_t * msgSecParmLen);
+
     SecmodSessionCallback usm_open_session;
     SecmodOutMsg    usm_secmod_generate_out_msg;
     SecmodOutMsg    usm_secmod_generate_out_msg;
