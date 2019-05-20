@@ -4021,6 +4021,13 @@ snmpv3_parse(netsnmp_pdu *pdu,
     }
 
     /*
+     * subtract all the v3 overhead from pdu max size
+     */
+    pdu->msgMaxSize -= (msg_len - *length);
+    DEBUGMSGTL(("msgMaxSize:v3Parse", "msgMaxSize after v3 overhead: %ld\n",
+                pdu->msgMaxSize));
+
+    /*
      * parse the PDU.  
      */
     if (after_header != NULL) {
