@@ -2731,7 +2731,7 @@ snmpv3_packet_build(netsnmp_session * session, netsnmp_pdu *pdu,
     /*
      * build a scopedPDU structure into spdu_buf
      */
-    spdu_buf_len = SNMP_MAX_MSG_SIZE;
+    spdu_buf_len = SNMP_MIN(SNMP_MAX_MSG_SIZE, *out_length);
     DEBUGDUMPSECTION("send", "ScopedPdu");
     cp = snmpv3_scopedPDU_header_build(pdu, spdu_buf, &spdu_buf_len,
                                        &spdu_hdr_e);
@@ -5125,13 +5125,19 @@ _build_initial_pdu_packet(struct session_list *slp, netsnmp_pdu *pdu, int bulk)
         length = offset = 0;
         result = netsnmp_build_packet(isp, session, pdu, &pktbuf, &pktbuf_len,
                                       &packet, &length);
-        if (0 != result)
+
+        curr_count = count_varbinds(pdu->variables);
+        DEBUGMSGTL(("sess_async_send", " vb count: %d -> %d\n", orig_count,
+                    curr_count));
+        DEBUGMSGTL(("sess_async_send", " pdu_len: %" NETSNMP_PRIz "d -> %" NETSNMP_PRIz "d (max %ld)\n",
+                    orig_length, length, pdu->msgMaxSize));
+        if (0 != result) {
+            DEBUGMSGTL(("sess_async_send", " result %d != 0\n", result));
             break;
+        }
 
         if (orig_count) { /* 2nd pass, see how many varbinds remain */
             curr_count = count_varbinds(pdu->variables);
-            DEBUGMSGTL(("sess_async_send", " vb count: %d -> %d\n", orig_count,
-                        curr_count));
             DEBUGMSGTL(("sess_async_send", " pdu_len: %" NETSNMP_PRIz "d -> %" NETSNMP_PRIz "d (max %ld)\n",
                         orig_length, length, pdu->msgMaxSize));
         }
@@ -5147,8 +5153,20 @@ _build_initial_pdu_packet(struct session_list *slp, netsnmp_pdu *pdu, int bulk)
         }
 
         /** rebuild bulk response with truncation and fixed size */
+        DEBUGMSGTL(("sess_async_send",
+                    " retry with forward encoding/truncation; varbinds %d\n",
+                    count_varbinds(pdu->variables)));
         pdu->flags |= UCD_MSG_FLAG_FORWARD_ENCODE | UCD_MSG_FLAG_BULK_TOOBIG;
-        pktbuf_len = pdu->msgMaxSize;
+        if (pktbuf_len > pdu->msgMaxSize)
+            pktbuf_len = pdu->msgMaxSize;
+        pktbuf_len -= 30; /* overhead fudge factor */
+        if (pktbuf_len < SNMP_MIN_MAX_LEN) {
+            DEBUGMSGTL(("sess_async_send",
+                        "can't fit response between min %d and max %d\n",
+                        SNMP_MIN_MAX_LEN, pdu->msgMaxSize));
+            result = SNMPERR_GENERR;
+            break;
+        }
 
         /** save original number of vabinds & length */
         if (0 == orig_count) {
