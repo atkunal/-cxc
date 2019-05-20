@@ -771,6 +771,13 @@ snmp_sess_init(netsnmp_session * session)
     session->securityModel = SNMP_DEFAULT_SECMODEL;
     session->rcvMsgMaxSize = SNMP_MAX_MSG_SIZE;
     session->sndMsgMaxSize = netsnmp_max_send_msg_size();
+    DEBUGMSGTL(("msgMaxSize:snmp_sess_init",
+                "setting default session sndMsgMaxSize to %ld\n",
+                session->sndMsgMaxSize));
+    DEBUGMSGTL(("msgMaxSize:snmp_sess_init",
+                "setting default session rcvMsgMaxSize to %ld\n",
+                session->rcvMsgMaxSize));
+
     session->flags |= SNMP_FLAGS_DONT_PROBE;
 }
 
@@ -1586,15 +1593,16 @@ netsnmp_sess_config_and_open_transport(netsnmp_session *in_session,
 
     /** if transport has a max size, make sure session is the same (or less) */
     if (in_session->rcvMsgMaxSize > transport->msgMaxSize) {
-        DEBUGMSGTL(("snmp_sess",
-                    "limiting session rcv size to transport max\n"));
+        DEBUGMSGTL(("msgMaxSize:netsnmp_sess_config_and_open_transport",
+                    "limiting session rcv size %ld to transport max %ld\n",
+                    in_session->rcvMsgMaxSize, transport->msgMaxSize));
         in_session->rcvMsgMaxSize = transport->msgMaxSize;
     }
 
     if (in_session->sndMsgMaxSize > transport->msgMaxSize) {
-        DEBUGMSGTL(("snmp_sess",
-                    "limiting session snd size to transport max\n"));
-        in_session->sndMsgMaxSize = transport->msgMaxSize;
+        DEBUGMSGTL(("msgMaxSize:netsnmp_sess_config_and_open_transport",
+                    "limiting session snd size %ld to transport max %ld\n",
+                    in_session->sndMsgMaxSize, transport->msgMaxSize));
     }
 
     transport->flags |= NETSNMP_TRANSPORT_FLAG_OPENED;
@@ -1834,15 +1842,12 @@ snmp_sess_add_ex(netsnmp_session * in_session,
     slp->internal->check_packet = fcheck;
     slp->internal->hook_create_pdu = fcreate_pdu;
 
-    /** don't let session max exceed transport max */
-    if (slp->session->rcvMsgMaxSize > transport->msgMaxSize) {
-        DEBUGMSGTL(("snmp_sess_add",
-                    "limiting session rcv size to transport max\n"));
-        slp->session->rcvMsgMaxSize = transport->msgMaxSize;
-    }
+    /** be generous in what we accept, limit send to transport */
+    slp->session->rcvMsgMaxSize = transport->msgMaxSize;
     if (slp->session->sndMsgMaxSize > transport->msgMaxSize) {
-        DEBUGMSGTL(("snmp_sess_add",
-                    "limiting session snd size to transport max\n"));
+        DEBUGMSGTL(("msgMaxSize:snmp_sess_add_ex",
+                    "limiting session snd size %ld to transport max %ld\n",
+                    slp->session->sndMsgMaxSize, transport->msgMaxSize));
         slp->session->sndMsgMaxSize = transport->msgMaxSize;
     }
 
@@ -2351,9 +2356,19 @@ snmpv3_header_build(netsnmp_session * session, netsnmp_pdu *pdu,
     /*
      * msgMaxSize 
      */
+#if 0
+    max_size = session->rcvMsgMaxSize;
+#else
     max_size = netsnmp_max_send_msg_size();
-    if (session->rcvMsgMaxSize < max_size)
-        max_size = session->rcvMsgMaxSize;
+    if (session->rcvMsgMaxSize < max_size) {
+        /** does this ever happen? session is initialized from 
+         *  netsnmp_max_send_msg_size */
+        DEBUGMSGTL(("msgMaxSize:snmpv3_header_build",
+                    "sending msgMaxSize %ld to session max %ld\n",
+                    max_size, session->rcvMsgMaxSize));
+        /*max_size = session->rcvMsgMaxSize;*/
+    }
+#endif
     DEBUGDUMPHEADER("send:msgMaxSize1", "msgMaxSize");
     cp = asn_build_int(cp, out_length,
                        (u_char) (ASN_UNIVERSAL | ASN_PRIMITIVE |
@@ -2456,9 +2471,17 @@ snmpv3_header_realloc_rbuild(u_char ** pkt, size_t * pkt_len,
     /*
      * msgMaxSize.  
      */
+#if 0
+    max_size = session->rcvMsgMaxSize;
+#else
     max_size = netsnmp_max_send_msg_size();
-    if (session->rcvMsgMaxSize < max_size)
-        max_size = session->rcvMsgMaxSize;
+    if (session->rcvMsgMaxSize < max_size) {
+        DEBUGMSGTL(("msgMaxSize:snmpv3_header_realloc_rbuild",
+                    "shrinking msgMaxSize %ld to session max size %ld\n",
+                    max_size, session->rcvMsgMaxSize));
+        /*max_size = session->rcvMsgMaxSize;*/
+    }
+#endif
     DEBUGDUMPHEADER("send:msgMaxSize2", "msgMaxSize");
     rc = asn_realloc_rbuild_int(pkt, pkt_len, offset, 1,
                                 (u_char) (ASN_UNIVERSAL | ASN_PRIMITIVE |
@@ -3828,8 +3851,9 @@ snmpv3_parse(netsnmp_pdu *pdu,
                     pdu->msgMaxSize));
         /** don't increase max msg size if we've already got one */
         if (sess->sndMsgMaxSize < pdu->msgMaxSize) {
-            DEBUGMSGTL(("snmpv3_parse:msgMaxSize",
-                        "msgMaxSize greater than session max; reducing\n"));
+            DEBUGMSGTL(("msgMaxSize:snmpv3_parse",
+                        "msgMaxSize %ld > session max %ld; reducing\n",
+                        pdu->msgMaxSize, sess->sndMsgMaxSize));
             pdu->msgMaxSize = sess->sndMsgMaxSize;
         }
     }
@@ -4991,6 +5015,8 @@ int
 _build_initial_pdu_packet(struct session_list *slp, netsnmp_pdu *pdu, int bulk)
 {
     netsnmp_session *session;
+    struct snmp_secmod_def *sptr = NULL;
+    void *stateRef = NULL;
     struct snmp_internal_session *isp;
     netsnmp_transport *transport = NULL;
     u_char         *pktbuf = NULL, *packet = NULL;
@@ -5083,10 +5109,18 @@ _build_initial_pdu_packet(struct session_list *slp, netsnmp_pdu *pdu, int bulk)
      */
     if (pdu->msgMaxSize == 0) {
         pdu->msgMaxSize = netsnmp_max_send_msg_size();
-        if (pdu->msgMaxSize > transport->msgMaxSize)
+        if (pdu->msgMaxSize > transport->msgMaxSize) {
+            DEBUGMSGTL(("msgMaxSize:_build_initial_pdu_packet",
+                        "shrinking pdu msgMaxSize %ld to transport max %ld\n",
+                        pdu->msgMaxSize, session->rcvMsgMaxSize));
             pdu->msgMaxSize = transport->msgMaxSize;
-        if (pdu->msgMaxSize > session->sndMsgMaxSize)
+        }
+        if (pdu->msgMaxSize > session->sndMsgMaxSize) {
+            DEBUGMSGTL(("msgMaxSize:_build_initial_pdu_packet",
+                        "shrinking pdu msgMaxSize %ld to session max %ld\n",
+                        pdu->msgMaxSize, session->rcvMsgMaxSize));
             pdu->msgMaxSize = session->sndMsgMaxSize;
+        }
     }
     netsnmp_assert(pdu->msgMaxSize > 0);
 
@@ -5131,6 +5165,20 @@ _build_initial_pdu_packet(struct session_list *slp, netsnmp_pdu *pdu, int bulk)
     }
 #endif
 
+    if ( pdu->securityStateRef && bulk) {
+        sptr = find_sec_mod(pdu->securityModel);
+        if (NULL == sptr) {
+            snmp_log(LOG_ERR,"no such security service available: %d\n",
+                     pdu->securityModel);
+            session->s_snmp_errno = SNMPERR_GENERR;
+        }
+        if (NULL == sptr->handle_report) {
+            snmp_log(LOG_ERR,
+                     "security service %d handle_report not available\n",
+                     pdu->securityModel);
+            session->s_snmp_errno = SNMPERR_GENERR;
+        }
+    }
 
     /*
      * Build the message to send. If a bulk response is too big, switch to
@@ -5139,6 +5187,33 @@ _build_initial_pdu_packet(struct session_list *slp, netsnmp_pdu *pdu, int bulk)
     do {
         packet = pktbuf;
         length = offset = 0;
+
+        /*
+         * building the packet frees the state reference, but we will need
+         * it if we need to rebuild a shorter packet. If pdu has a ref,
+         * clone it, unless we already have a ref, in which case we are
+         * in the next iteration of the loop and need to clone it back
+         * to the pdu.
+         * This may cause an memory leak if some intermediate error
+         * happens and state ref in pdu is not freed, 
+         */
+        if ( pdu->securityStateRef && bulk) {
+            if (SNMPERR_GENERR == session->s_snmp_errno)
+                break;
+
+            /*
+             * HACK HACK HACK PART
+             *
+             * we are using handle_report to clone/free state ref
+             */
+            if ( NULL == stateRef)
+                stateRef = pdu->securityStateRef; /* keep original */
+            else
+                pdu->securityStateRef = stateRef; /* copy for pdu to reclone */
+            /** let security model clone state ref */
+            (*sptr->handle_report)(NULL, NULL, NULL,
+                                   SNMPERR_USM_CLONE_STATE_HACK, pdu);
+        }
         result = netsnmp_build_packet(isp, session, pdu, &pktbuf, &pktbuf_len,
                                       &packet, &length);
 
@@ -5195,13 +5270,17 @@ _build_initial_pdu_packet(struct session_list *slp, netsnmp_pdu *pdu, int bulk)
 
     } while(1);
 
+    /** HACK HACK HACK */
+    if (NULL != stateRef) {
+        /** let security model free state ref */
+        pdu->securityStateRef = stateRef;
+        (*sptr->handle_report)(NULL, NULL, NULL,
+                               SNMPERR_USM_FREE_STATE_HACK, pdu);
+    }
+
     DEBUGMSGTL(("sess_async_send",
                 "final pktbuf_len after building packet %" NETSNMP_PRIz "u\n",
                 pktbuf_len));
-    if (curr_count != orig_count)
-        DEBUGMSGTL(("sess_async_send",
-                    "sending %d of %d varbinds (-%d) from bulk response\n",
-                    curr_count, orig_count, orig_count - curr_count));
 
     if (length > pdu->msgMaxSize) {
         DEBUGMSGTL(("sess_async_send",
@@ -5211,10 +5290,16 @@ _build_initial_pdu_packet(struct session_list *slp, netsnmp_pdu *pdu, int bulk)
     }
 
     if ((SNMPERR_TOO_LONG == session->s_snmp_errno) || (result < 0)) {
-        DEBUGMSGTL(("sess_async_send", "encoding failure\n"));
+        DEBUGMSGTL(("sess_async_send", "encoding failure; snmp_errno %d\n",
+                    session->s_snmp_errno));
         SNMP_FREE(pktbuf);
         return SNMPERR_GENERR;
     }
+
+    if (curr_count != orig_count)
+        DEBUGMSGTL(("sess_async_send",
+                    "sending %d of %d varbinds (-%d) from bulk response\n",
+                    curr_count, orig_count, orig_count - curr_count));
 
     /*
      * Hello, insane layering violation.

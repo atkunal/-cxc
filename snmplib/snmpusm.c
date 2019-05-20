@@ -2782,9 +2782,27 @@ usm_handle_report(void *sessp,
      * handle reportable errors 
      */
 
+    /*
+     * HACK HACK HACK PART 1/2
+     *
+     * we are using this handle to clone/free state ref
+     */
+    if (SNMPERR_USM_CLONE_STATE_HACK == result) {
+        void *ref = pdu->securityStateRef; /* (struct usmStateReference **) */
+        pdu->securityStateRef = NULL; /* probably not necessary */
+        usm_clone_usmStateReference( ref,
+                                     (struct usmStateReference **)&pdu->securityStateRef );
+        return;
+    }
+    
+
     /* this will get in our way */
     usm_free_usmStateReference(pdu->securityStateRef);
     pdu->securityStateRef = NULL;
+
+    /** HACK HACK HACK PART 2/2 */
+    if (SNMPERR_USM_FREE_STATE_HACK == result)
+        return;
 
     switch (result) {
     case SNMPERR_USM_AUTHENTICATIONFAILURE:
