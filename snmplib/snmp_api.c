@@ -2302,6 +2302,7 @@ snmpv3_header_build(netsnmp_session * session, netsnmp_pdu *pdu,
     long            max_size;
     long            sec_model;
     u_char         *pb, *pb0e;
+    size_t          save_out_length;
 
     /*
      * Save current location and build SEQUENCE tag and length placeholder
@@ -2404,6 +2405,8 @@ snmpv3_header_build(netsnmp_session * session, netsnmp_pdu *pdu,
     if (cp == NULL)
         return NULL;
 
+    /** save out_length; next 2 calls encode values already accounted for */
+    save_out_length = *out_length;
 
     /*
      * insert actual length of globalData
@@ -2423,6 +2426,9 @@ snmpv3_header_build(netsnmp_session * session, netsnmp_pdu *pdu,
                             length + (cp - pb0e));
     if (pb == NULL)
         return NULL;
+
+    /** restore saved out_length */
+    *out_length = save_out_length;
 
     return cp;
 
