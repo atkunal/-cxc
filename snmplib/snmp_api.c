@@ -2672,7 +2672,15 @@ snmpv3_packet_realloc_rbuild(u_char ** pkt, size_t * pkt_len,
         parms.secLevel = pdu->securityLevel;
         parms.scopedPdu = scoped_pdu;
         parms.scopedPduLen = spdu_offset;
-        parms.secStateRef = pdu->securityStateRef;
+        /*
+         * encode_reverse() frees the state reference, but we may want to
+         * refer to it later, so we duplicate it.
+         */
+        if ( pdu->securityStateRef ) {
+           usm_clone_usmStateReference( pdu->securityStateRef, (struct usmStateReference **)&parms.secStateRef );
+        } else {
+           parms.secStateRef = NULL;
+        }
         parms.wholeMsg = pkt;
         parms.wholeMsgLen = pkt_len;
         parms.wholeMsgOffset = offset;
@@ -2786,7 +2794,15 @@ snmpv3_packet_build(netsnmp_session * session, netsnmp_pdu *pdu,
         parms.secLevel = pdu->securityLevel;
         parms.scopedPdu = spdu_buf;
         parms.scopedPduLen = spdu_len;
-        parms.secStateRef = pdu->securityStateRef;
+        /*
+         * encode_forward() frees the state reference, but we may want to
+         * refer to it later, so we duplicate it.
+         */
+        if ( pdu->securityStateRef ) {
+           usm_clone_usmStateReference( pdu->securityStateRef, (struct usmStateReference **)&parms.secStateRef );
+        } else {
+           parms.secStateRef = NULL;
+        }
         parms.secParams = sec_params;
         parms.secParamsLen = &sec_params_len;
         parms.wholeMsg = &cp;
@@ -5159,14 +5175,17 @@ _build_initial_pdu_packet(struct session_list *slp, netsnmp_pdu *pdu, int bulk)
         pdu->flags |= UCD_MSG_FLAG_FORWARD_ENCODE | UCD_MSG_FLAG_BULK_TOOBIG;
         if (pktbuf_len > pdu->msgMaxSize)
             pktbuf_len = pdu->msgMaxSize;
-        pktbuf_len -= 30; /* overhead fudge factor */
         if (pktbuf_len < SNMP_MIN_MAX_LEN) {
             DEBUGMSGTL(("sess_async_send",
-                        "can't fit response between min %d and max %d\n",
+                        "can't fit response between min %d and max %lu\n",
                         SNMP_MIN_MAX_LEN, pdu->msgMaxSize));
             result = SNMPERR_GENERR;
+            /* length reflects the partially built pdu, but we are
+             * ignoring that pdu, so zero out the length. */
+            length = 0;
             break;
         }
+        pktbuf_len -= 30; /* overhead fudge factor */
 
         /** save original number of vabinds & length */
         if (0 == orig_count) {
@@ -5195,6 +5214,27 @@ _build_initial_pdu_packet(struct session_list *slp, netsnmp_pdu *pdu, int bulk)
         DEBUGMSGTL(("sess_async_send", "encoding failure\n"));
         SNMP_FREE(pktbuf);
         return SNMPERR_GENERR;
+    }
+
+    /*
+     * Hello, insane layering violation.
+     * We know that snmpv3_build() has called either encode_reverse()
+     * or encode_forward(), both of which we've patched to clone the
+     * security parameters so that we can actually iterate above and
+     * still have security parameters after they are freed deep in
+     * those functions.  So, if it's a v3 pdu, we still have
+     * security parameters (since they've been cloned and freed to
+     * build the packet that we built), so we need to free them here.
+     *
+     * (And, of course, if there are security models other than usm in
+     * use here this is the wrong function to call altogether)
+     */
+    if (pdu->version == SNMP_VERSION_3) {
+        if (pdu->securityStateRef) {
+            DEBUGMSGTL(("sess_async_send", "freeing pdu->securityStateRef\n"));
+            usm_free_usmStateReference(pdu->securityStateRef);
+            pdu->securityStateRef = NULL;
+        }
     }
 
     isp->obuf = pktbuf;
