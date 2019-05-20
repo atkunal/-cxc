@@ -1846,7 +1846,7 @@ snmp_sess_add_ex(netsnmp_session * in_session,
     slp->session->rcvMsgMaxSize = transport->msgMaxSize;
     if (slp->session->sndMsgMaxSize > transport->msgMaxSize) {
         DEBUGMSGTL(("msgMaxSize:snmp_sess_add_ex",
-                    "limiting session snd size %ld to transport max %ld\n",
+                    "limiting session snd size %" NETSNMP_PRIz"d to transport max %" NETSNMP_PRIz "d\n",
                     slp->session->sndMsgMaxSize, transport->msgMaxSize));
         slp->session->sndMsgMaxSize = transport->msgMaxSize;
     }
@@ -2745,6 +2745,8 @@ snmpv3_packet_build(netsnmp_session * session, netsnmp_pdu *pdu,
     u_char         *cp;
     int             result;
     struct snmp_secmod_def *sptr;
+    size_t          theTotalLength, authParamsOffset, privParamsOffset, dataOffset;
+    size_t          datalen, msgAuthParmLen, msgPrivParmLen, otstlen, seq_len, msgSecParmLen;
 
     global_data = packet;
 
@@ -2756,6 +2758,7 @@ snmpv3_packet_build(netsnmp_session * session, netsnmp_pdu *pdu,
     if (sec_params == NULL)
         return -1;
     global_data_len = sec_params - global_data;
+    // This variable isn't actually used in encode_forward...
     sec_params_len = *out_length;       /* length left in packet buf for sec_params */
 
 
@@ -2763,6 +2766,16 @@ snmpv3_packet_build(netsnmp_session * session, netsnmp_pdu *pdu,
      * build a scopedPDU structure into spdu_buf
      */
     spdu_buf_len = SNMP_MIN(SNMP_MAX_MSG_SIZE, *out_length);
+    if (usm_calc_offsets(global_data_len, pdu->securityLevel, pdu->securityEngineIDLen,
+                         pdu->securityNameLen, *out_length, 0,
+                         0, &theTotalLength, &authParamsOffset,
+                         &privParamsOffset, &dataOffset, &datalen,
+                         &msgAuthParmLen, &msgPrivParmLen, &otstlen,
+                         &seq_len, &msgSecParmLen) == -1) {
+        DEBUGMSGTL(("usm", "Failed calculating offsets2.\n"));
+        return SNMPERR_USM_GENERICERROR;
+    }
+    spdu_buf_len = spdu_buf_len - msgSecParmLen - global_data_len;
     DEBUGDUMPSECTION("send", "ScopedPdu");
     cp = snmpv3_scopedPDU_header_build(pdu, spdu_buf, &spdu_buf_len,
                                        &spdu_hdr_e);
@@ -2800,7 +2813,6 @@ snmpv3_packet_build(netsnmp_session * session, netsnmp_pdu *pdu,
      * message - the entire message to transmitted on the wire is returned
      */
     cp = NULL;
-    *out_length = SNMP_MAX_MSG_SIZE;
     DEBUGDUMPSECTION("send", "SM msgSecurityParameters");
     sptr = find_sec_mod(pdu->securityModel);
     if (sptr && sptr->encode_forward) {
@@ -5297,8 +5309,8 @@ _build_initial_pdu_packet(struct session_list *slp, netsnmp_pdu *pdu, int bulk)
     }
 
     if ((SNMPERR_TOO_LONG == session->s_snmp_errno) || (result < 0)) {
-        DEBUGMSGTL(("sess_async_send", "encoding failure; snmp_errno %d\n",
-                    session->s_snmp_errno));
+        DEBUGMSGTL(("sess_async_send", "encoding failure (errno=%d result=%d)\n",
+                 session->s_snmp_errno, result));
         SNMP_FREE(pktbuf);
         return SNMPERR_GENERR;
     }
